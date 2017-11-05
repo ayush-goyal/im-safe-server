@@ -12,7 +12,7 @@ router.post('/voice', (req, res) => {
     client.calls.create({
         to: `${req.body.people[person]}`,
         from: process.env.BUTTON_TWILIO_CALLER_ID,
-        url: 'https://501a540a.ngrok.io/voice/twiml'
+        url: process.env.BUTTON_TWIML_REQUEST_URL
       })
       .then((message) => {
         //console.log(message.responseText);
