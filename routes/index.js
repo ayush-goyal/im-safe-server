@@ -104,7 +104,7 @@ router.post('/sendAlert', (req, res) => {
       token: req.body.token
     }).then(ref => {
       console.log('Added document with ID: ' + ref.id);
-    })
+    })  
   }
 
 
@@ -126,7 +126,7 @@ router.post('/cancelAlert', (req, res) => {
         console.log(err);
       } else {
         //console.log(message.sid);
-        console.log(`Message to ${person}, sent successfully`)
+        console.log(`Cancel Message to ${person}, sent successfully`)
       }
     });
 
