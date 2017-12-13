@@ -1,9 +1,12 @@
+// ----------------- Twilio Setup -------------------
+
 const twilio = require('twilio');
 const MessagingResponse = twilio.twiml.MessagingResponse;
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
 var client = twilio(process.env.BUTTON_TWILIO_ACCOUNT_SID, process.env.BUTTON_TWILIO_AUTH_TOKEN);
 
+// ----------------- Firebase Setup -------------------
 
 var admin = require("firebase-admin");
 
@@ -22,8 +25,6 @@ if (process.env.USE_FIREBASE_SERVICE_ACCOUNT_JSON == "true") {
     })
   });
 }
-
-
 
 var db = admin.firestore()
 
@@ -46,6 +47,8 @@ function sendReceivedNotificationToDevice(name, token) {
     })
 }
 
+// ------------------- Helper Functions ----------------------------
+
 function cleanNumber(number) {
   number = number.replace(/\D/g, '');
   if (number.length == 11 && number[0] == 1) {
@@ -55,9 +58,12 @@ function cleanNumber(number) {
   }
 }
 
+// -------------------- Express App Setup -----------------------------
 
 const express = require('express');
 const router = express.Router();
+
+// --------------------- Express Routes ------------------------------
 
 router.post('/voice/twiml', (req, res) => {
   var twimlResponse = new VoiceResponse();
@@ -67,15 +73,27 @@ router.post('/voice/twiml', (req, res) => {
 });
 
 router.post('/sendAlert', (req, res) => {
+  console.log(req.body.coordinate)
   for (var person in req.body.people) {
     var alertNumber = cleanNumber(req.body.people[person]);
-    var senderNumber = cleanNumber(req.body.senderNumber);
-
 
     client.messages.create({
       to: `${req.body.people[person]}`,
       from: process.env.BUTTON_TWILIO_CALLER_ID,
       body: `${person}, Alert!`,
+    }, function (err, message) {
+      if (err) {
+        console.log(err);
+      } else {
+        //console.log(message.sid);
+        console.log(`Message to ${person}, sent successfully`)
+      }
+    });
+
+    client.messages.create({
+      to: `${req.body.people[person]}`,
+      from: process.env.BUTTON_TWILIO_CALLER_ID,
+      body: `Located at (${req.body.coordinate.latitude}, ${req.body.coordinate.longitude})`,
     }, function (err, message) {
       if (err) {
         console.log(err);
@@ -100,23 +118,21 @@ router.post('/sendAlert', (req, res) => {
 
     alertNumbersCollection.doc(alertNumber).set({
       name: person,
-      senderNumber: senderNumber,
       messageReceived: false,
+      coordinate: {
+        latitude: req.body.coordinate.latitude,
+        longitude: req.body.coordinate.longitude
+      },
       token: req.body.token
-    }).then(ref => {
-      console.log('Added document with ID: ' + ref.id);
     })
   }
 
-
-  res.send('SMS & Calls sent')
+  res.send('Alerts sent to contacts')
 })
 
 router.post('/cancelAlert', (req, res) => {
   for (var person in req.body.people) {
     var alertNumber = cleanNumber(req.body.people[person]);
-    var senderNumber = cleanNumber(req.body.senderNumber);
-
 
     client.messages.create({
       to: `${req.body.people[person]}`,
@@ -134,7 +150,7 @@ router.post('/cancelAlert', (req, res) => {
     alertNumbersCollection.doc(alertNumber).delete();
   }
 
-  res.send('SMS alert cancelled')
+  res.send('Cancel alerts sent to contacts')
 })
 
 router.post('/sms', (req, res) => {
