@@ -30,17 +30,35 @@ var db = admin.firestore()
 
 var alertNumbersCollection = db.collection('alertNumbers');
 
-function sendReceivedNotificationToDevice(name, token) {
-  var payload = {
-    notification: {
-      title: "Alert Received",
-      body: "by " + name
-    }
-  };
+function sendReceivedNotificationToDevice(name, token, confirmation, response) {
+  var payload;
+  if (confirmation == 0) {
+    payload = {
+      notification: {
+        title: "Alert sent",
+        body: "to " + name
+      }
+    };
+  } else if (confirmation == 1) {
+    payload = {
+      notification: {
+        title: name + " responded",
+        body: response
+      }
+    };
+  } else if (confirmation == 2) {
+    payload = {
+      notification: {
+        title: "Updated location sent to",
+        body: name
+      }
+    };
+  }
+
 
   admin.messaging().sendToDevice(token, payload)
     .then(response => {
-      console.log("Successfully sent notification to device: " + name + " received alert.")
+      console.log("Successfully sent notification to device: " + name)
     })
     .catch(error => {
       console.log("Error sending message to device: " + error);
@@ -68,7 +86,7 @@ const router = express.Router();
 router.post('/voice/twiml', (req, res) => {
   var twimlResponse = new VoiceResponse();
 
-  twimlResponse.say('Alert! This is Ayush');
+  twimlResponse.say('Distress call activated by I\'m Safe app. Please see your texts for further information.');
   res.send(twimlResponse.toString());
 });
 
@@ -90,7 +108,7 @@ router.post('/sendAlert', (req, res) => {
       }
     });
 
-    client.messages.create({
+    /*client.messages.create({
       to: `${req.body.people[person]}`,
       from: process.env.BUTTON_TWILIO_CALLER_ID,
       body: `Located at (${req.body.coordinate.latitude}, ${req.body.coordinate.longitude})`,
@@ -101,7 +119,21 @@ router.post('/sendAlert', (req, res) => {
         //console.log(message.sid);
         console.log(`Message to ${person}, sent successfully`)
       }
+    });*/
+
+    client.messages.create({
+      to: `${req.body.people[person]}`,
+      from: process.env.BUTTON_TWILIO_CALLER_ID,
+      body: `https://www.google.com/maps/?q=${req.body.coordinate.latitude},${req.body.coordinate.longitude}`,
+    }, function (err, message) {
+      if (err) {
+        console.log(err);
+      } else {
+        //console.log(message.sid);
+        console.log(`Message to ${person}, sent successfully`)
+      }
     });
+
 
     client.calls.create({
         to: `${req.body.people[person]}`,
@@ -125,6 +157,10 @@ router.post('/sendAlert', (req, res) => {
       },
       token: req.body.token
     })
+
+
+    sendReceivedNotificationToDevice(person, req.body.token, 0, "");
+
   }
 
   res.send('Alerts sent to contacts')
@@ -167,7 +203,7 @@ router.post('/sms', (req, res) => {
           alertNumberRef.update({
             messageReceived: true
           });
-          sendReceivedNotificationToDevice(data.name, data.token);
+          sendReceivedNotificationToDevice(data.name, data.token, 1, req.body.Body);
         }
       }
     })
@@ -183,6 +219,56 @@ router.post('/sms', (req, res) => {
     'Content-Type': 'text/xml'
   });
   res.end(twiml.toString());
+})
+
+
+router.post('/updateLocation', (req, res) => {
+  console.log(req.body.coordinate)
+  for (var person in req.body.people) {
+    var alertNumber = cleanNumber(req.body.people[person]);
+
+    /*client.messages.create({
+      to: `${req.body.people[person]}`,
+      from: process.env.BUTTON_TWILIO_CALLER_ID,
+      body: `Located at (${req.body.coordinate.latitude}, ${req.body.coordinate.longitude})`,
+    }, function (err, message) {
+      if (err) {
+        console.log(err);
+      } else {
+        //console.log(message.sid);
+        console.log(`Message to ${person}, sent successfully`)
+      }
+    });*/
+
+    client.messages.create({
+      to: `${req.body.people[person]}`,
+      from: process.env.BUTTON_TWILIO_CALLER_ID,
+      body: `https://www.google.com/maps/?q=${req.body.coordinate.latitude},${req.body.coordinate.longitude}`,
+    }, function (err, message) {
+      if (err) {
+        console.log(err);
+      } else {
+        //console.log(message.sid);
+        console.log(`Message to ${person}, sent successfully`)
+      }
+    });
+
+    alertNumbersCollection.doc(alertNumber).set({
+      name: person,
+      messageReceived: false,
+      coordinate: {
+        latitude: req.body.coordinate.latitude,
+        longitude: req.body.coordinate.longitude
+      },
+      token: req.body.token
+    })
+
+
+    sendReceivedNotificationToDevice(person, req.body.token, 2, "");
+
+  }
+
+  res.send('Alerts sent to contacts')
 })
 
 module.exports = router;
